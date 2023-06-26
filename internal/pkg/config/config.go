@@ -9,6 +9,8 @@ type Config struct {
 	DatabaseURL    string `mapstructure:"DATABASE_URL"`
 	DatabaseDriver string `mapstructure:"DATABASE_DRIVER"`
 	LogLevel       string `mapstructure:"LOG_LEVEL"`
+	HashCost       int    `mapstructure:"HASH_COST"`
+	SecretKey      string `mapstructure:"SECRET_KEY"`
 }
 
 func LoadConfig() (Config, error) {

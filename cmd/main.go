@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/casbin/casbin/v2"
 	"github.com/gin-gonic/gin"
 	"github.com/heriant0/purplestore/internal/app/controllers"
 	"github.com/heriant0/purplestore/internal/app/repositories"
@@ -17,10 +18,12 @@ import (
 var cfg config.Config
 var dbConn *sqlx.DB
 var err error
+var enforcer *casbin.Enforcer
 
 func init() {
 	// load configuration based on app.env
 	cfg, err = config.LoadConfig()
+	fmt.Println(cfg.SecretKey, "secret key 1")
 	if err != nil {
 		panic("failed to load config")
 	}
@@ -38,6 +41,12 @@ func init() {
 		panic(errMsg)
 	}
 
+	// casebin enforcer
+	enforcer, err = casbin.NewEnforcer("config/rbac_model.conf", "config/rbac_policy.csv")
+	if err != nil {
+		errMsg := fmt.Errorf("error enforce casbin: %w", err)
+		panic(errMsg)
+	}
 	// setup logrus logging
 	loglLevel, err := log.ParseLevel(cfg.LogLevel)
 	if err != nil {
@@ -56,16 +65,34 @@ func main() {
 
 	// init repository
 	categoryRepository := repositories.NewCategoryRepository(dbConn)
+	userRepository := repositories.NewUserRepository(dbConn)
 
 	// init service
 	categoryService := services.NewCategoryService(categoryRepository)
-
+	userService := services.NewUserService(userRepository, []byte(cfg.SecretKey))
 	// init controller
 	categoryController := controllers.NewCategoryController(categoryService)
+	userController := controllers.NewUserController(userService)
 
-	// routes
-	r.GET("categories", categoryController.GetList)
+	// category routes
+	v1Routes := r.Group("api/v1")
+	{
+		v1Routes.POST("/auth/register", userController.Register)
+		v1Routes.POST("/auth/login", userController.Login)
+
+		v1Routes.GET("categories",
+			// userController.Auth,
+			categoryController.GetList)
+		v1Routes.POST("categories",
+			middlewares.AuthorizationMiddleware(enforcer, "ani", "categories", "create"),
+			categoryController.Create)
+		v1Routes.GET("categories/:id", categoryController.Detail)
+	}
 
 	appPort := fmt.Sprintf(":%s", cfg.AppPort)
-	r.Run(appPort) // nolint:errcheck
+	err := r.Run(appPort)
+	if err != nil {
+		log.Panic("cannot start the apps")
+	}
+	// r.Run(appPort) // nolint:errcheck
 }

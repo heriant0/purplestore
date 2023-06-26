@@ -6,10 +6,12 @@ services:
       - 5435:5432
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    environment:
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_USER=postgres
-      - POSTGRES_DB=db_purplestore
+    # environment:
+    #   - POSTGRES_PASSWORD=postgres
+    #   - POSTGRES_USER=postgres
+    #   - POSTGRES_DB=db_purplestore
+    env_file:
+      - app.env
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
@@ -38,6 +40,14 @@ services:
     depends_on:
       db:
         condition: service_healthy
-
+  swagger:
+    image: swaggerapi/swagger-ui
+    ports: 
+      - 8004:8080
+    volumes:
+      - ./docs:/docs
+    environment:
+      - SWAGGER_JSON=/docs/api.yaml
+      - BASE_URL=/swagger
 volumes:
   postgres_data:
